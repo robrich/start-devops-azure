@@ -1,0 +1,60 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '6.0.x'
+
+- script: |
+    set -e
+
+    # 1. get latest
+    # already done
+
+    # 2. version assets
+    pwsh -NoProfile -NoLogo -ExecutionPolicy unrestricted -command "(Get-Content ./Site/Properties/AssemblyInfo.cs).replace('GITHASH', (git rev-parse --short HEAD)) | Set-Content ./Site/Properties/AssemblyInfo.cs"
+
+    # 3. build
+    dotnet restore
+    dotnet build -c Release
+
+    # 4. run tests
+    dotnet test -c Release '-l:trx;LogFileName=../../results/Site.Tests.xml'
+
+    # 5. deploy
+    dotnet publish -c Release -o ./dist Site/Site.csproj
+  displayName: 'dotnet build and publish'
+
+- task: AzureRmWebAppDeployment@4
+  inputs:
+    ConnectionType: 'AzureRM'
+    azureSubscription: 'AzureToDevOps'
+    appType: 'webAppLinux'
+    WebAppName: '$(webapp)'
+    packageForLinux: '$(System.DefaultWorkingDirectory)/dist/'
+  displayName: 'Deploy to Azure'
+
+- script: |
+    # 4. tests
+    curl -i $(SITEURL)
+  displayName: 'JIT site'
+
+- task: PublishTestResults@2
+  inputs:
+    testResultsFormat: 'VSTest'
+    testResultsFiles: '**/*.xml'
+    searchFolder: '$(System.DefaultWorkingDirectory)/results'
+  condition: always()
+
+- task: CreateWorkItem@1
+  inputs:
+    workItemType: 'User Story'
+    title: 'Build Failed: $(Build.BuildNumber)'
+    assignedTo: '$(Build.RequestedForId)'
+  condition: failed()

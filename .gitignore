@@ -1,0 +1,19 @@
+# downloaded libraries
+packages
+node_modules
+# built files
+bin
+obj
+Debug
+Release
+results
+./dist
+Site.zip
+# temp files
+*.log
+*.tmp
+# user-specific files
+.vs
+*.user
+# secrets
+.env
